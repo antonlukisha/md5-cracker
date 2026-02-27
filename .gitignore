@@ -1,0 +1,8 @@
+worker/.env
+worker/.venv
+
+manager/.venv
+manager/.env
+
+.idea
+.venv
