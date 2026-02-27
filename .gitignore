@@ -1,12 +1,13 @@
 worker/.env
-worker/.venv
-worker/__pycache__
+worker/.venv/
 
-manager/.venv
+manager/.venv/
 manager/.env
-manager/__pycache__
 
-k8s/__pycache__
-
-.idea
-.venv
+.idea/
+.venv/
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+**/__pycache__/
