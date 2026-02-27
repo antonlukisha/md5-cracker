@@ -1,50 +1,46 @@
-from typing import List, Dict
-import config
+import time
+import logging
+from functools import wraps
+from typing import Callable, Any, TypeVar, cast
+
+logger = logging.getLogger(__name__)
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
-def calculate_total_combinations(max_length: int) -> int:
-    """
-    Вычисление общего количества комбинаций для заданной максимальной длины
-    """
-    total = 0
-    for length in range(1, max_length + 1):
-        total += config.ALPHABET_SIZE ** length
-    return total
+def track_request(endpoint: F) -> F:
+    @wraps(endpoint)
+    def decorated(*args: Any, **kwargs: Any) -> Any:
+        start_time = time.time()
+        response = endpoint(*args, **kwargs)
+        duration = time.time() - start_time
+        logger.info(f"{endpoint.__name__} took {duration:.3f}s")
+        return response
+
+    return cast(F, decorated)
 
 
-def create_task_partitions(total_combinations: int, task_size: int) -> List[Dict]:
-    """
-    Создание партиций задач для распределения между воркерами
-    """
-    if task_size <= 0:
-        raise ValueError("task_size must be positive")
+def retry(max_attempts: int = 3, delay: float = 1.0) -> Callable[[F], F]:
+    def decorator(func: F) -> F:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            last_exception = None
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        time.sleep(delay * (attempt + 1))
+                    else:
+                        logger.error(
+                            f"All {max_attempts} attempts failed for {func.__name__}"
+                        )
+            if last_exception:
+                raise last_exception
 
-    partitions = []
-    start = 0
+            raise RuntimeError("Unexpected state in retry")
 
-    while start < total_combinations:
-        count = min(task_size, total_combinations - start)
-        partitions.append({
-            'start_index': start,
-            'count': count
-        })
-        start += count
+        return cast(F, wrapper)
 
-    return partitions
-
-
-def validate_hash(target_hash: str) -> bool:
-    """
-    Проверка валидности MD5 хэша
-    """
-    if len(target_hash) != config.MAX_HASH_LENGTH:
-        return False
-    return all(c in '0123456789abcdef' for c in target_hash.lower())
-
-
-def validate_max_length(max_length: int) -> bool:
-    """
-    Проверка допустимой длины
-    """
-    return (isinstance(max_length, int) and
-            config.MIN_ALLOWED_LENGTH <= max_length <= config.MAX_ALLOWED_LENGTH)
+    return decorator

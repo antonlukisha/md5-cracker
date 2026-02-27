@@ -1,175 +1,134 @@
-import json
 import time
-import threading
 import logging
-from typing import Dict, Callable, Optional
-
-import pika
-from pika.adapters.blocking_connection import BlockingChannel
-from pika.spec import Basic, BasicProperties
-
+from datetime import datetime, timezone
+from pymongo import MongoClient, WriteConcern
+from pymongo.read_preferences import ReadPreference
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.collection import Collection
 import config
+from utils.decorators import retry
 
 logger = logging.getLogger(__name__)
 
+class MongoDBManager:
+    def __init__(self) -> None:
+        self.host = config.MONGO_HOST
+        self.port = config.MONGO_PORT
+        self.client: MongoClient | None = None
+        self.db = None
+        self.requests: Collection | None = None
+        self.tasks: Collection | None = None
+        self.connect()
 
-class RabbitMQManager:
-    """
-    Менеджер для работы с RabbitMQ с поддержкой отказоустойчивости
-    """
-
-    def __init__(self, host: str, port: int, mongo_manager):
-        self.host = host
-        self.port = port
-        self.mongo = mongo_manager
-        self.connection: Optional[pika.BlockingConnection] = None
-        self.channel: Optional[BlockingChannel] = None
-        self.result_callback: Optional[Callable] = None
-        self.reconnect()
-        self.start_consuming()
-
-    def reconnect(self):
-        """Переподключение к RabbitMQ"""
-        for attempt in range(config.MAX_RETRIES):
-            try:
-                credentials = pika.PlainCredentials('guest', 'guest')
-                parameters = pika.ConnectionParameters(
-                    host=self.host,
-                    port=self.port,
-                    credentials=credentials,
-                    **config.RABBITMQ_CONNECTION_SETTINGS
-                )
-
-                self.connection = pika.BlockingConnection(parameters)
-                self.channel = self.connection.channel()
-
-                # Настройка очередей
-                self._setup_queues()
-
-                logger.info("Successfully connected to RabbitMQ")
-                return
-
-            except Exception as e:
-                if attempt < config.MAX_RETRIES - 1:
-                    wait_time = config.RETRY_DELAY * (attempt + 1)
-                    logger.warning(f"RabbitMQ connection attempt {attempt + 1} failed: {e}")
-                    logger.info(f"Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error("Failed to connect to RabbitMQ after all retries")
-                    raise
-
-    def _setup_queues(self):
-        """Настройка очередей"""
-        if self.channel:
-            # Декларируем очереди
-            self.channel.queue_declare(queue='task.queue', durable=True)
-            self.channel.queue_declare(queue='result.queue', durable=True)
-
-            # Настройка QoS
-            self.channel.basic_qos(prefetch_count=10)
-
-    def ensure_connection(self):
-        """Проверка и восстановление подключения"""
-        if not self.connection or self.connection.is_closed:
-            logger.warning("RabbitMQ connection lost, reconnecting...")
-            self.reconnect()
-
-    def publish_task(self, task: Dict) -> bool:
-        """Публикация задачи в очередь"""
+    @retry(max_attempts=config.MAX_RETRIES, delay=config.RETRY_DELAY)
+    def connect(self) -> None:
         try:
-            self.ensure_connection()
-            if self.channel:
-                self.channel.basic_publish(
-                    exchange='',
-                    routing_key='task.queue',
-                    body=json.dumps(task),
-                    properties=pika.BasicProperties(
-                        delivery_mode=2,  # Persistent message
-                        content_type='application/json'
-                    )
+            self.client = MongoClient(
+                host=self.host, port=self.port, **config.MONGO_CONNECTION_SETTINGS
+            )
+            self.client.admin.command("ping")
+
+            self.db = self.client.md5_cracker
+
+            self.requests = self.db.requests
+            self.tasks = self.db.tasks
+
+            if self.requests is not None:
+                self.requests = self.requests.with_options(
+                    write_concern=WriteConcern(w="majority", wtimeout=5000)
                 )
-                return True
-            return False
+
+            if self.tasks is not None:
+                self.tasks = self.tasks.with_options(
+                    write_concern=WriteConcern(w="majority", wtimeout=5000)
+                )
+
+            self._create_indexes()
+
+            logger.info("Successfully connected to MongoDB")
+            return
+
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.error(f"Failed to connect to MongoDB: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Failed to publish task: {e}")
-            return False
+            logger.error(f"Failed to connect to MongoDB: {e}")
+            raise
 
-    def _handle_result(self, ch: BlockingChannel, method: Basic.Deliver,
-                       properties: BasicProperties, body: bytes):
-        """Обработка результата от воркера"""
+    def _create_indexes(self) -> None:
+        if self.requests is not None:
+            self.requests.create_index("requestId", unique=True)
+            self.requests.create_index("status")
+            self.requests.create_index("created_at")
+
+        if self.tasks is not None:
+            self.tasks.create_index("taskId", unique=True)
+            self.tasks.create_index("requestId")
+            self.tasks.create_index("status")
+            self.tasks.create_index("needs_retry")
+
+    def ensure_connection(self) -> None:
         try:
-            result = json.loads(body)
-            task_id = result['taskId']
-            request_id = result['requestId']
+            if self.client:
+                self.client.admin.command("ping")
+        except Exception as e:
+            logger.warning(f"MongoDB connection lost: {e}, reconnecting...")
+            self.connect()
 
-            logger.info(f"Received result for task {task_id}, status: {result['status']}")
+    @retry(max_attempts=3)
+    def insert_request(self, request_data: dict) -> str:
+        if self.requests is not None:
+            result = self.requests.insert_one(request_data)
+            return str(result.inserted_id)
+        raise RuntimeError("MongoDB not initialized")
 
-            # Обновляем задачу в MongoDB
-            self.mongo.update_task_status(
-                task_id,
-                result['status'],
-                result.get('results', [])
+    @retry(max_attempts=3)
+    def insert_tasks(self, tasks: list[dict]) -> list[str]:
+        if self.tasks is not None:
+            result = self.tasks.insert_many(tasks)
+            return [str(i) for i in result.inserted_ids]
+        raise RuntimeError("MongoDB not initialized")
+
+    def get_request(self, request_id: str, use_secondary: bool = True) -> Collection | None:
+        if self.requests is None:
+            raise RuntimeError("MongoDB not initialized")
+
+        collection = self.requests
+        if use_secondary:
+            collection = collection.with_options(
+                read_preference=ReadPreference.SECONDARY
             )
 
-            # Если есть результаты, добавляем их к запросу
-            if result.get('results'):
-                self.mongo.add_results_to_request(request_id, result['results'])
+        return collection.find_one({"requestId": request_id})
 
-            # Проверяем, все ли задачи выполнены
-            self._check_request_completion(request_id)
+    def update_task_status(
+        self, task_id: str, status: str, results: list[str] | None = None
+    ) -> None:
+        if self.tasks is None:
+            raise RuntimeError("MongoDB not initialized")
 
-            ch.basic_ack(delivery_tag=method.delivery_tag)
+        update_data = {"status": status, "completed_at": datetime.now(timezone.utc)}
+        if results:
+            update_data["results"] = results
 
-        except Exception as e:
-            logger.error(f"Error handling result: {e}")
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+        self.tasks.update_one({"taskId": task_id}, {"$set": update_data})
 
-    def _check_request_completion(self, request_id: str):
-        """Проверка завершения всех задач запроса"""
-        try:
-            total_tasks = self.mongo.tasks.count_documents({'requestId': request_id})
-            completed_tasks = self.mongo.tasks.count_documents({
-                'requestId': request_id,
-                'status': {'$in': ['DONE', 'ERROR']}
-            })
+    def add_results_to_request(self, request_id: str, results: list[str]) -> None:
+        if self.requests is None:
+            raise RuntimeError("MongoDB not initialized")
 
-            if completed_tasks == total_tasks and total_tasks > 0:
-                # Все задачи выполнены
-                request = self.mongo.get_request(request_id, use_secondary=False)
-                if request:
-                    has_results = len(request.get('results', [])) > 0
-                    status = 'READY'
+        self.requests.update_one(
+            {"requestId": request_id}, {"$push": {"results": {"$each": results}}}
+        )
 
-                    self.mongo.requests.update_one(
-                        {'requestId': request_id},
-                        {'$set': {
-                            'status': status,
-                            'completed_at': datetime.utcnow()
-                        }}
-                    )
-                    logger.info(f"Request {request_id} completed with status {status}")
-        except Exception as e:
-            logger.error(f"Error checking request completion: {e}")
+    def get_failed_tasks(self) -> list[dict]:
+        if self.tasks is None:
+            raise RuntimeError("MongoDB not initialized")
 
-    def start_consuming(self):
-        """Запуск consumer в отдельном потоке"""
+        return list(self.tasks.find({"needs_retry": True, "status": "QUEUED"}))
 
-        def consume():
-            while True:
-                try:
-                    self.ensure_connection()
-                    if self.channel:
-                        self.channel.basic_consume(
-                            queue='result.queue',
-                            on_message_callback=self._handle_result,
-                            auto_ack=False
-                        )
-                        self.channel.start_consuming()
-                except Exception as e:
-                    logger.error(f"Consumer error: {e}")
-                    time.sleep(5)
+    def mark_task_retried(self, task_id: str) -> None:
+        if self.tasks is None:
+            raise RuntimeError("MongoDB not initialized")
 
-        thread = threading.Thread(target=consume, daemon=True)
-        thread.start()
-        logger.info("Result consumer started")
+        self.tasks.update_one({"taskId": task_id}, {"$set": {"needs_retry": False}})
