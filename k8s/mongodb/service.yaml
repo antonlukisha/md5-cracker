@@ -5,6 +5,10 @@ metadata:
   namespace: md5-cracker
   labels:
     app: mongodb
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9216"
+    prometheus.io/path: "/metrics"
 spec:
   ports:
   - port: 27017
@@ -19,10 +23,15 @@ kind: Service
 metadata:
   name: mongodb-headless
   namespace: md5-cracker
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9216"
+    prometheus.io/path: "/metrics"
 spec:
   ports:
   - port: 27017
     targetPort: 27017
+    name: mongodb
   clusterIP: None
   selector:
     app: mongodb

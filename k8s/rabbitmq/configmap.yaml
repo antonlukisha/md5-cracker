@@ -14,5 +14,6 @@ data:
     default_queue_type = quorum
     
     cluster_partition_handling = pause_minority
+    prometheus.return_per_object_metrics = true
   enabled_plugins: |
     [rabbitmq_management, rabbitmq_peer_discovery_k8s, rabbitmq_prometheus].

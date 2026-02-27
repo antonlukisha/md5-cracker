@@ -3,6 +3,12 @@ kind: Service
 metadata:
   name: rabbitmq
   namespace: md5-cracker
+  labels:
+    app: rabbitmq
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "15692"
+    prometheus.io/path: "/metrics"
 spec:
   type: ClusterIP
   ports:
@@ -23,6 +29,10 @@ kind: Service
 metadata:
   name: rabbitmq-headless
   namespace: md5-cracker
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "15692"
+    prometheus.io/path: "/metrics"
 spec:
   clusterIP: None
   ports:
@@ -35,5 +45,8 @@ spec:
     - name: dist
       port: 25672
       targetPort: 25672
+    - name: metrics
+      port: 15692
+      targetPort: 15692
   selector:
     app: rabbitmq

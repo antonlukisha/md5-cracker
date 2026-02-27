@@ -5,7 +5,7 @@ metadata:
   namespace: md5-cracker
   labels:
     app: worker
-    release: monitoring
+    release: prometheus-stack
 spec:
   selector:
     matchLabels:
@@ -21,3 +21,6 @@ spec:
       targetLabel: app
     - action: labelmap
       regex: __meta_kubernetes_pod_label_(.+)
+  namespaceSelector:
+    matchNames:
+    - md5-cracker

@@ -1,19 +1,19 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: manager-monitor
+  name: mongodb-monitor
   namespace: md5-cracker
   labels:
-    app: manager
-    release: monitoring
+    app: mongodb
+    release: prometheus-stack
 spec:
   selector:
     matchLabels:
-      app: manager
+      app: mongodb
   endpoints:
   - port: metrics
-    interval: 15s
-    path: /metrics
-  - port: http
     interval: 30s
-    path: /health
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - md5-cracker

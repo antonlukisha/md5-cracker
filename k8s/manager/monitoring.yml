@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: manager-monitor
+  namespace: md5-cracker
+  labels:
+    app: manager
+    release: prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: manager
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+  - port: http
+    interval: 30s
+    path: /metrics/manager
+  namespaceSelector:
+    matchNames:
+    - md5-cracker
