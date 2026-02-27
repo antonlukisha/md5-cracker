@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+  namespace: md5-cracker
+  labels:
+    app: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: manager
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8088"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: manager
+          image: md5-cracker-manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5055
+              name: http
+            - containerPort: 8088
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: manager-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5055
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5055
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3

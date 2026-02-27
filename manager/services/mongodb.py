@@ -30,8 +30,8 @@ class MongoDBManager:
 
             self.db = self.client.md5_cracker
 
-            self.requests = self.db.requests
-            self.tasks = self.db.tasks
+            self.requests = self.db.requests # type: ignore[attr-defined]
+            self.tasks = self.db.tasks # type: ignore[attr-defined]
 
             if self.requests is not None:
                 self.requests = self.requests.with_options(

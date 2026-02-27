@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: worker-monitor
+  namespace: md5-cracker
+  labels:
+    app: worker
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: worker
+  podMetricsEndpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_pod_label_app]
+      targetLabel: app
+    - action: labelmap
+      regex: __meta_kubernetes_pod_label_(.+)

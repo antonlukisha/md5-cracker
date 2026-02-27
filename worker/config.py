@@ -12,7 +12,7 @@ RABBITMQ_USER: Final = os.getenv("RABBITMQ_USER", "guest")
 RABBITMQ_PASS: Final = os.getenv("RABBITMQ_PASS", "guest")
 RABBITMQ_CONNECTION_SETTINGS = {"heartbeat": 600, "blocked_connection_timeout": 300}
 
-METRICS_PORT: Final = int(os.getenv("METRICS_PORT", "8000"))
+METRICS_PORT: Final = int(os.getenv("METRICS_PORT", "7077"))
 
 MAX_RETRIES: Final = 5
 RETRY_DELAY: Final = 2

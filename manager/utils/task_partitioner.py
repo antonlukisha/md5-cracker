@@ -30,7 +30,7 @@ def validate_hash(target_hash: str) -> bool:
 
 
 def validate_max_length(max_length: int) -> bool:
-    return (
+    return bool(
         isinstance(max_length, int)
         and config.MIN_ALLOWED_LENGTH <= max_length <= config.MAX_ALLOWED_LENGTH
     )

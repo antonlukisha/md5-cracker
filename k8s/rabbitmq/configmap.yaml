@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: md5-cracker
+data:
+  rabbitmq.conf: |
+    cluster_formation.peer_discovery_backend = rabbit_peer_discovery_k8s
+    cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+    cluster_formation.k8s.address_type = hostname
+    cluster_formation.k8s.service_name = rabbitmq-headless
+    cluster_formation.k8s.hostname_suffix = .rabbitmq-headless.md5-cracker.svc.cluster.local
+    
+    default_queue_type = quorum
+    
+    cluster_partition_handling = pause_minority
+  enabled_plugins: |
+    [rabbitmq_management, rabbitmq_peer_discovery_k8s, rabbitmq_prometheus].

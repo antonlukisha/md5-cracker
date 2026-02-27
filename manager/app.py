@@ -144,17 +144,17 @@ def health() -> tuple[Response, int]:
     try:
         mongo.ensure_connection()
         mongo.client.admin.command("ping")
-        health_status["components"]["mongodb"] = "healthy"
+        health_status["components"]["mongodb"] = "healthy" # type: ignore[index]
     except Exception as e:
         health_status["status"] = "unhealthy"
-        health_status["components"]["mongodb"] = f"unhealthy: {str(e)}"
+        health_status["components"]["mongodb"] = f"unhealthy: {str(e)}" # type: ignore[index]
 
     try:
         rabbitmq.ensure_connection()
-        health_status["components"]["rabbitmq"] = "healthy"
+        health_status["components"]["rabbitmq"] = "healthy" # type: ignore[index]
     except Exception as e:
         health_status["status"] = "unhealthy"
-        health_status["components"]["rabbitmq"] = f"unhealthy: {str(e)}"
+        health_status["components"]["rabbitmq"] = f"unhealthy: {str(e)}" # type: ignore[index]
 
     status_code = 200 if health_status["status"] == "healthy" else 503
     return jsonify(health_status), status_code
@@ -204,6 +204,6 @@ def shutdown() -> tuple[Response, int]:
 
 if __name__ == "__main__":
     try:
-        app.run(host="0.0.0.0", port=5005, debug=False)
+        app.run(host="0.0.0.0", port=5055, debug=False)
     finally:
         retry_manager.stop()
