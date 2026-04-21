@@ -1,4 +1,5 @@
 from typing import Final
+
 from decouple import config
 
 TASK_SIZE: Final = int(config("TASK_SIZE", default="100000"))

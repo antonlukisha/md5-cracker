@@ -9,6 +9,7 @@ from src.services.rabbitmq import RabbitMQManager
 
 logger = get_logger("manager")
 
+
 class TaskRetryManager:
     def __init__(self, mongo: "MongoDBManager", rabbitmq: "RabbitMQManager") -> None:
         self.mongo = mongo

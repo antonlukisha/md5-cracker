@@ -2,6 +2,7 @@ from argparse import ArgumentParser, Namespace
 
 from flask import Flask, Response, jsonify, request
 from prometheus_flask_exporter import PrometheusMetrics
+from waitress import serve
 
 from src.core import config
 from src.core.logging import get_logger, setup_logging
@@ -15,12 +16,12 @@ from src.utils import (
     validate_max_length,
 )
 
-from waitress import serve
 
 def parse_arguments() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
     return parser.parse_args()
+
 
 args = parse_arguments()
 setup_logging(args.verbose)
@@ -71,14 +72,16 @@ def crack_hash() -> tuple[Response, int]:
         total_combinations = calculate_total_combinations(max_length)
         partitions = create_task_partitions(total_combinations, config.TASK_SIZE)
 
-
-        tasks = [Task(
+        tasks = [
+            Task(
                 request_id=request_obj.request_id,
                 start_index=partition["start_index"],
                 count=partition["count"],
                 target_hash=target_hash,
                 max_length=max_length,
-            ) for partition in partitions]
+            )
+            for partition in partitions
+        ]
 
         if tasks:
             mongo.insert_tasks([task.to_dict() for task in tasks])
@@ -118,6 +121,8 @@ def get_status() -> tuple[Response, int] | Response:
         status = request_data["status"]
 
         if status == "IN_PROGRESS":
+            if mongo.tasks is None:
+                return jsonify({"error": "Database not available"}), 503
             total_tasks = mongo.tasks.count_documents({"requestId": request_id})
             completed_tasks = mongo.tasks.count_documents(
                 {"requestId": request_id, "status": "DONE"}
@@ -149,6 +154,8 @@ def health() -> tuple[Response, int]:
     health_status = {"status": "healthy", "components": {}}
 
     try:
+        if mongo.client is None:
+            raise Exception("MongoDB client not initialized")
         mongo.ensure_connection()
         mongo.client.admin.command("ping")
         health_status["components"]["mongodb"] = "healthy"  # type: ignore[index]
@@ -170,6 +177,8 @@ def health() -> tuple[Response, int]:
 @app.route("/metrics/manager", methods=["GET"])
 def manager_metrics() -> tuple[Response, int] | Response:
     try:
+        if mongo.tasks is None or mongo.requests is None:
+            return jsonify({"error": "Database not available"}), 503
         total_requests = mongo.requests.count_documents({})
         in_progress = mongo.requests.count_documents({"status": "IN_PROGRESS"})
         completed = mongo.requests.count_documents({"status": "READY"})
@@ -201,11 +210,14 @@ def manager_metrics() -> tuple[Response, int] | Response:
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
 @app.route("/start", methods=["POST"])
 def start() -> tuple[Response, int]:
     logger.info("Received start signal")
     retry_manager.start()
     return jsonify({"status": "started"}), 200
+
 
 @app.route("/shutdown", methods=["POST"])
 def shutdown() -> tuple[Response, int]:

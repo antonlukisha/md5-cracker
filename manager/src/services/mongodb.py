@@ -11,6 +11,7 @@ from src.utils import retry
 
 logger = get_logger("mongodb")
 
+
 class MongoDBManager:
     def __init__(self) -> None:
         self.uri = config.MONGO_URI

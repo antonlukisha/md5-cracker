@@ -15,6 +15,7 @@ from src.utils import retry
 
 logger = get_logger("rabbitmq")
 
+
 class RabbitMQManager:
     def __init__(self, mongo_manager: "MongoDBManager") -> None:
         self.parameters: pika.ConnectionParameters | None = None
@@ -140,7 +141,7 @@ class RabbitMQManager:
             logger.error(f"Error checking request completion: {e}")
 
     def start_consuming(self) -> None:
-        def consume():
+        def consume() -> None:
             while True:
                 try:
                     connection = pika.BlockingConnection(self.parameters)
@@ -164,7 +165,6 @@ class RabbitMQManager:
         thread = threading.Thread(target=consume, daemon=True)
         thread.start()
         logger.info("Result consumer started")
-
 
     def close(self) -> None:
         logger.info("Closing RabbitMQ connections...")

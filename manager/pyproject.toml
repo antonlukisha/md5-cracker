@@ -34,6 +34,7 @@ dev = [
     "isort>=8.0.1",
     "ruff>=0.15.6",
     "mypy==1.19.1",
+    "types-waitress>=3.0.1.20260408"
 ]
 
 [tool.mypy]

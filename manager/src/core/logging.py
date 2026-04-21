@@ -1,15 +1,13 @@
 import logging
 import sys
+
 import coloredlogs
 
 from src.core.config import LOGGER_LEVEL
 
 
 def setup_logging(verbose: bool = False) -> None:
-    if verbose:
-        log_level = "DEBUG"
-    else:
-        log_level = LOGGER_LEVEL.upper()
+    log_level = "DEBUG" if verbose else LOGGER_LEVEL.upper()
 
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
@@ -24,7 +22,7 @@ def setup_logging(verbose: bool = False) -> None:
         fmt=log_format,
         datefmt=date_format,
         stream=sys.stdout,
-        isatty=True
+        isatty=True,
     )
 
 

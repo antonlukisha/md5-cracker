@@ -4,7 +4,7 @@ from src.core import config
 def calculate_total_combinations(max_length: int) -> int:
     total = 0
     for length in range(1, max_length + 1):
-        total += config.ALPHABET_SIZE ** length
+        total += config.ALPHABET_SIZE**length
     return total
 
 
