@@ -1,15 +1,15 @@
 import time
 import logging
 from typing import Any
-from models import Task, TaskResult
+from src.models import Task, TaskResult
 from core import StringGenerator, MD5Hasher
-from utils.metrics import (
+from src.utils import (
     update_combinations_speed,
     inc_tasks_in_progress,
     inc_tasks_processed,
     dec_tasks_in_progress,
 )
-import config
+from src.core import config
 
 logger = logging.getLogger(__name__)
 

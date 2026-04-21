@@ -1,6 +1,6 @@
 from prometheus_client import Counter, Gauge, start_http_server
 import logging
-import config
+from src.core import config
 
 logger = logging.getLogger(__name__)
 

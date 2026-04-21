@@ -1,8 +1,22 @@
 worker/.env
 worker/.venv/
+worker/.ruff_cache/
+worker/.pylint.d
+worker/.mypy_cache/
+worker/.dmypy.json
+worker/dmypy.json
+worker/.pyre/
+worker/.pytype/
 
 manager/.venv/
 manager/.env
+manager/.ruff_cache/
+manager/.pylint.d
+manager/.mypy_cache/
+manager/.dmypy.json
+manager/dmypy.json
+manager/.pyre/
+manager/.pytype/
 
 .vscode/
 .idea/

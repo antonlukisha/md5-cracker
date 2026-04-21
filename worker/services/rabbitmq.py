@@ -3,8 +3,8 @@ import orjson
 import logging
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
-import config
-from utils import retry
+from src.core import config
+from src.utils import retry
 
 logger = logging.getLogger(__name__)
 
