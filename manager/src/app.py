@@ -1,22 +1,31 @@
-import logging
-from flask import Flask, request, jsonify, Response
+from argparse import ArgumentParser, Namespace
+
+from flask import Flask, Response, jsonify, request
 from prometheus_flask_exporter import PrometheusMetrics
-import config
-from services import MongoDBManager, RabbitMQManager, TaskRetryManager
-from utils import (
+
+from src.core import config
+from src.core.logging import get_logger, setup_logging
+from src.models import CrackRequest, Task
+from src.services import MongoDBManager, RabbitMQManager, TaskRetryManager
+from src.utils import (
     calculate_total_combinations,
     create_task_partitions,
     track_request,
-    validate_max_length,
     validate_hash,
+    validate_max_length,
 )
-from models import CrackRequest, Task
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from waitress import serve
 
+def parse_arguments() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    return parser.parse_args()
+
+args = parse_arguments()
+setup_logging(args.verbose)
+
+logger = get_logger("app")
 app = Flask(__name__)
 metrics = PrometheusMetrics(app)
 
@@ -62,16 +71,14 @@ def crack_hash() -> tuple[Response, int]:
         total_combinations = calculate_total_combinations(max_length)
         partitions = create_task_partitions(total_combinations, config.TASK_SIZE)
 
-        tasks = []
-        for partition in partitions:
-            task = Task(
+
+        tasks = [Task(
                 request_id=request_obj.request_id,
                 start_index=partition["start_index"],
                 count=partition["count"],
                 target_hash=target_hash,
                 max_length=max_length,
-            )
-            tasks.append(task)
+            ) for partition in partitions]
 
         if tasks:
             mongo.insert_tasks([task.to_dict() for task in tasks])
@@ -144,17 +151,17 @@ def health() -> tuple[Response, int]:
     try:
         mongo.ensure_connection()
         mongo.client.admin.command("ping")
-        health_status["components"]["mongodb"] = "healthy" # type: ignore[index]
+        health_status["components"]["mongodb"] = "healthy"  # type: ignore[index]
     except Exception as e:
         health_status["status"] = "unhealthy"
-        health_status["components"]["mongodb"] = f"unhealthy: {str(e)}" # type: ignore[index]
+        health_status["components"]["mongodb"] = f"unhealthy: {str(e)}"  # type: ignore[index]
 
     try:
         rabbitmq.ensure_connection()
-        health_status["components"]["rabbitmq"] = "healthy" # type: ignore[index]
+        health_status["components"]["rabbitmq"] = "healthy"  # type: ignore[index]
     except Exception as e:
         health_status["status"] = "unhealthy"
-        health_status["components"]["rabbitmq"] = f"unhealthy: {str(e)}" # type: ignore[index]
+        health_status["components"]["rabbitmq"] = f"unhealthy: {str(e)}"  # type: ignore[index]
 
     status_code = 200 if health_status["status"] == "healthy" else 503
     return jsonify(health_status), status_code
@@ -194,7 +201,11 @@ def manager_metrics() -> tuple[Response, int] | Response:
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
+@app.route("/start", methods=["POST"])
+def start() -> tuple[Response, int]:
+    logger.info("Received start signal")
+    retry_manager.start()
+    return jsonify({"status": "started"}), 200
 
 @app.route("/shutdown", methods=["POST"])
 def shutdown() -> tuple[Response, int]:
@@ -202,8 +213,12 @@ def shutdown() -> tuple[Response, int]:
     retry_manager.stop()
     return jsonify({"status": "shutting down"}), 200
 
+
 if __name__ == "__main__":
     try:
-        app.run(host="0.0.0.0", port=5055, debug=False)
+        serve(app, host="0.0.0.0", port=5055)
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received")
     finally:
         retry_manager.stop()
+        rabbitmq.close()

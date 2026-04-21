@@ -1,4 +1,4 @@
-from .decorators import track_request, retry
+from .decorators import retry, track_request
 from .task_partitioner import (
     calculate_total_combinations,
     create_task_partitions,

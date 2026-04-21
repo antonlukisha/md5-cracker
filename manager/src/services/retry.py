@@ -1,16 +1,16 @@
-import time
-import logging
 import threading
+import time
 from threading import Thread
-import config
-from services.rabbitmq import RabbitMQManager
-from services.mongodb import MongoDBManager
 
-logger = logging.getLogger(__name__)
+from src.core import config
+from src.core.logging import get_logger
+from src.services.mongodb import MongoDBManager
+from src.services.rabbitmq import RabbitMQManager
 
+logger = get_logger("manager")
 
 class TaskRetryManager:
-    def __init__(self, mongo: 'MongoDBManager', rabbitmq: 'RabbitMQManager') -> None:
+    def __init__(self, mongo: "MongoDBManager", rabbitmq: "RabbitMQManager") -> None:
         self.mongo = mongo
         self.rabbitmq = rabbitmq
         self.running = True

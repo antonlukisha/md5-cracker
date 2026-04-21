@@ -11,26 +11,30 @@ dependencies = [
     "python-dotenv==1.2.1",
     "prometheus-flask-exporter==0.23.2",
     "gunicorn==25.1.0",
-    "orjson==3.11.7"
+    "orjson==3.11.7",
+    "coloredlogs>=15.0.1",
+    "python-decouple>=3.8",
+    "waitress>=3.0.2"
 ]
 
 [project.scripts]
-app = "app:__main__"
+app = "src.app:__main__"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.uv]
-dev-dependencies = [
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = [
     "pytest==9.0.2",
     "black==26.1.0",
-    "flake8==7.3.0",
+    "isort>=8.0.1",
+    "ruff>=0.15.6",
     "mypy==1.19.1",
 ]
-
-[tool.hatch.build.targets.wheel]
-packages = ["."]
 
 [tool.mypy]
 python_version = "3.13"
@@ -53,3 +57,24 @@ follow_imports = "skip"
 [[tool.mypy.overrides]]
 module = "pytils.*"
 ignore_missing_imports = true
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+target-version = "py313"
+line-length = 150
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "C4", "ARG", "SIM"]
+ignore = []

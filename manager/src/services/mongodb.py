@@ -1,19 +1,19 @@
-import time
-import logging
 from datetime import datetime, timezone
-from pymongo import MongoClient, WriteConcern
-from pymongo.read_preferences import ReadPreference
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-from pymongo.collection import Collection
-import config
-from utils.decorators import retry
 
-logger = logging.getLogger(__name__)
+from pymongo import MongoClient, WriteConcern
+from pymongo.collection import Collection
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.read_preferences import ReadPreference
+
+from src.core import config
+from src.core.logging import get_logger
+from src.utils import retry
+
+logger = get_logger("mongodb")
 
 class MongoDBManager:
     def __init__(self) -> None:
-        self.host = config.MONGO_HOST
-        self.port = config.MONGO_PORT
+        self.uri = config.MONGO_URI
         self.client: MongoClient | None = None
         self.db = None
         self.requests: Collection | None = None
@@ -23,15 +23,13 @@ class MongoDBManager:
     @retry(max_attempts=config.MAX_RETRIES, delay=config.RETRY_DELAY)
     def connect(self) -> None:
         try:
-            self.client = MongoClient(
-                host=self.host, port=self.port, **config.MONGO_CONNECTION_SETTINGS
-            )
+            self.client = MongoClient(self.uri, **config.MONGO_CONNECTION_SETTINGS)
             self.client.admin.command("ping")
 
             self.db = self.client.md5_cracker
 
-            self.requests = self.db.requests # type: ignore[attr-defined]
-            self.tasks = self.db.tasks # type: ignore[attr-defined]
+            self.requests = self.db.requests
+            self.tasks = self.db.tasks
 
             if self.requests is not None:
                 self.requests = self.requests.with_options(
@@ -95,9 +93,7 @@ class MongoDBManager:
 
         collection = self.requests
         if use_secondary:
-            collection = collection.with_options(
-                read_preference=ReadPreference.SECONDARY
-            )
+            collection = collection.with_options(read_preference=ReadPreference.SECONDARY)
 
         return collection.find_one({"requestId": request_id})
 

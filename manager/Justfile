@@ -1,0 +1,27 @@
+#set shell := ["powershell.exe", "-c"]
+set shell := ["cmd.exe", "/c"]
+#set shell := ["pwsh.exe", "-c"]
+#set shell := ["C:\\Program Files\\Git\\bin\\bash.exe", "-c"]
+
+default:
+    @just --list
+
+lint: mypy ruff black isort
+
+lint-fix: mypy ruff-fix black isort
+
+isort:
+    uv run isort .
+
+black:
+    uv run black .
+
+ruff:
+    uv run ruff check .
+
+ruff-fix:
+    uv run ruff check --fix .
+    uv run ruff format .
+
+mypy:
+    uv run mypy .

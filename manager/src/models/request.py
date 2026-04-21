@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
 import uuid
+from datetime import datetime, timezone
 from typing import Any
+
 
 class CrackRequest:
     def __init__(self, target_hash: str, max_length: int) -> None:
