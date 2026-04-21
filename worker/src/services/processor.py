@@ -1,46 +1,43 @@
 import time
-import logging
 from typing import Any
-from src.models import Task, TaskResult
-from core import StringGenerator, MD5Hasher
+
+from models import TaskResult
+from src.core import MD5Hasher, StringGenerator
+from src.core.config import ALPHABET, PROGRESS_REPORT_INTERVAL
+from src.core.logging import get_logger
+from src.models import Task
 from src.utils import (
-    update_combinations_speed,
+    dec_tasks_in_progress,
     inc_tasks_in_progress,
     inc_tasks_processed,
-    dec_tasks_in_progress,
+    update_combinations_speed,
 )
-from src.core import config
 
-logger = logging.getLogger(__name__)
+logger = get_logger("task_processor")
 
 
 class TaskProcessor:
     def __init__(self, worker_id: str) -> None:
         self.worker_id = worker_id
-        self.generator = StringGenerator(config.ALPHABET)
+        self.generator = StringGenerator(ALPHABET)
         self.hasher = MD5Hasher()
         self.current_task: Task | None = None
         self.combinations_processed = 0
 
     def _process_combinations(self, task: Task) -> list[str]:
         results: list[str] = []
-        processed = 0
 
         for i, candidate in enumerate(
             self.generator.generate_range(task.startIndex, task.count, task.maxLength)
         ):
-
             if self.hasher.check_match(candidate, task.targetHash):
                 logger.info(f"Found match: '{candidate}' for task {task.taskId}")
                 results.append(candidate)
 
-            processed += 1
             self.combinations_processed += 1
 
-            if (i + 1) % config.PROGRESS_REPORT_INTERVAL == 0:
-                logger.debug(
-                    f"Task {task.taskId}: processed {i + 1}/{task.count} combinations"
-                )
+            if (i + 1) % PROGRESS_REPORT_INTERVAL == 0:
+                logger.debug(f"Task {task.taskId}: processed {i + 1}/{task.count} combinations")
                 update_combinations_speed(self.combinations_processed / time.time())
 
         return results
@@ -53,8 +50,7 @@ class TaskProcessor:
             inc_tasks_in_progress()
 
             logger.info(
-                f"Worker {self.worker_id} processing task {task.taskId}: "
-                f"start={task.startIndex}, count={task.count}"
+                f"Worker {self.worker_id} processing task {task.taskId}: start={task.startIndex}, count={task.count}"
             )
 
             results = self._process_combinations(task)
@@ -72,8 +68,7 @@ class TaskProcessor:
             inc_tasks_processed("success" if status == "DONE" else "interrupted")
 
             logger.info(
-                f"Task {task.taskId} completed with {len(results)} matches "
-                f"in {processing_time:.2f}s"
+                f"Task {task.taskId} completed with {len(results)} matches in {processing_time:.2f}s"
             )
 
             return result

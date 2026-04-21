@@ -1,9 +1,10 @@
 import signal
 import sys
-import logging
-from typing import Callable, Any
+from typing import Any, Callable
 
-logger = logging.getLogger(__name__)
+from src.core.logging import get_logger
+
+logger = get_logger("signal_handler")
 
 
 class SignalHandler:

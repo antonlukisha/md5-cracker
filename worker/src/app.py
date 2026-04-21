@@ -1,22 +1,31 @@
-import logging
 import sys
+from argparse import ArgumentParser, Namespace
+
 import orjson
-import config
-from services import RabbitMQClient, TaskProcessor
-from utils.metrics import start_metrics_server, update_memory_usage
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic, BasicProperties
-from utils import SignalHandler
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+from src.core.config import WORKER_ID
+from src.core.logging import get_logger, setup_logging
+from src.services import RabbitMQClient, TaskProcessor
+from src.utils import SignalHandler, start_metrics_server, update_memory_usage
+
+
+def parse_arguments() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    return parser.parse_args()
+
+
+args = parse_arguments()
+setup_logging(args.verbose)
+
+logger = get_logger("worker")
 
 
 class WorkerApp:
     def __init__(self) -> None:
-        self.worker_id = config.WORKER_ID
+        self.worker_id = WORKER_ID
         logger.info(f"Initializing worker {self.worker_id}")
 
         self.processor = TaskProcessor(self.worker_id)

@@ -1,12 +1,14 @@
 from typing import Callable
+
 import orjson
-import logging
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
+
 from src.core import config
+from src.core.logging import get_logger
 from src.utils import retry
 
-logger = logging.getLogger(__name__)
+logger = get_logger("rabbitmq")
 
 
 class RabbitMQClient:

@@ -1,9 +1,10 @@
 import time
-import logging
 from functools import wraps
-from typing import Callable, Any, TypeVar, cast
+from typing import Any, Callable, TypeVar, cast
 
-logger = logging.getLogger(__name__)
+from src.core.logging import get_logger
+
+logger = get_logger("processing")
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -21,9 +22,7 @@ def retry(max_attempts: int = 3, delay: float = 1.0) -> Callable[[F], F]:
                     if attempt < max_attempts - 1:
                         time.sleep(delay * (attempt + 1))
                     else:
-                        logger.error(
-                            f"All {max_attempts} attempts failed for {func.__name__}"
-                        )
+                        logger.error(f"All {max_attempts} attempts failed for {func.__name__}")
             if last_exception:
                 raise last_exception
 

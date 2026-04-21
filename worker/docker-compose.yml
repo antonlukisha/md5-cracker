@@ -1,0 +1,50 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: md5-cracker-rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+      - "15674:15674"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+    command: sh -c "rabbitmq-server > /dev/null 2>&1"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 20s
+      timeout: 60s
+      retries: 50
+
+  manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: md5-cracker-manager
+    environment:
+      METRICS_PORT: "7077"
+      LOGGER_LEVEL: "INFO"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASS: "guest"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+    driver: local
+
+networks:
+  md5-cracker-network:
+    driver: bridge

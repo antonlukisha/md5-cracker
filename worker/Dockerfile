@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock* ./
 
-RUN uv venv && uv pip install .
+RUN uv venv && uv sync --no-dev
 
 ENV PATH="/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
@@ -14,4 +14,4 @@ ENV PATH="/venv/bin:$PATH" \
 
 COPY . .
 
-CMD ["uv", "run", "app"]
+CMD ["uv", "run", "--no-sync", "python", "-m", "src.app"]

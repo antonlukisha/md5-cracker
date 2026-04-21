@@ -1,26 +1,23 @@
 from prometheus_client import Counter, Gauge, start_http_server
-import logging
-from src.core import config
 
-logger = logging.getLogger(__name__)
+from src.core.config import METRICS_PORT
+from src.core.logging import get_logger
 
-tasks_processed = Counter(
-    "worker_tasks_processed_total", "Total tasks processed", ["status"]
-)
+logger = get_logger("metrics")
+
+tasks_processed = Counter("worker_tasks_processed_total", "Total tasks processed", ["status"])
 
 tasks_in_progress = Gauge("worker_tasks_in_progress", "Tasks currently in progress")
 
-combinations_speed = Gauge(
-    "worker_combinations_per_second", "Combinations processed per second"
-)
+combinations_speed = Gauge("worker_combinations_per_second", "Combinations processed per second")
 
 memory_usage = Gauge("worker_memory_usage_bytes", "Memory usage in bytes")
 
 
 def start_metrics_server() -> None:
     try:
-        start_http_server(config.METRICS_PORT)
-        logger.info(f"Metrics server started on port {config.METRICS_PORT}")
+        start_http_server(METRICS_PORT)
+        logger.info(f"Metrics server started on port {METRICS_PORT}")
     except Exception as e:
         logger.error(f"Failed to start metrics server: {e}")
 

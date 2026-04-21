@@ -1,7 +1,8 @@
-import logging
 from typing import Generator
 
-logger = logging.getLogger(__name__)
+from src.core.logging import get_logger
+
+logger = get_logger("generator")
 
 
 class StringGenerator:
@@ -21,9 +22,7 @@ class StringGenerator:
             length += 1
 
         if length > max_length:
-            raise ValueError(
-                f"Index {index} exceeds maximum combinations for length {max_length}"
-            )
+            raise ValueError(f"Index {index} exceeds maximum combinations for length {max_length}")
 
         remainder = index - total_prev
 

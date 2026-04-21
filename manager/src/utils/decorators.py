@@ -4,7 +4,7 @@ from typing import Any, Callable, TypeVar, cast
 
 from src.core.logging import get_logger
 
-logger = get_logger("proccessing")
+logger = get_logger("processing")
 
 F = TypeVar("F", bound=Callable[..., Any])
 

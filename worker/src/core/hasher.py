@@ -1,7 +1,8 @@
 import hashlib
-import logging
 
-logger = logging.getLogger(__name__)
+from src.core.logging import get_logger
+
+logger = get_logger("md5_hasher")
 
 
 class MD5Hasher:
