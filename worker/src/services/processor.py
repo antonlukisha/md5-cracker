@@ -1,11 +1,10 @@
 import time
 from typing import Any
 
-from models import TaskResult
 from src.core import MD5Hasher, StringGenerator
 from src.core.config import ALPHABET, PROGRESS_REPORT_INTERVAL
 from src.core.logging import get_logger
-from src.models import Task
+from src.models import Task, TaskResult
 from src.utils import (
     dec_tasks_in_progress,
     inc_tasks_in_progress,

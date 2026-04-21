@@ -21,11 +21,13 @@ services:
       timeout: 60s
       retries: 50
 
-  manager:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: md5-cracker-manager
+    container_name: md5-cracker-worker
+    ports:
+      - "7077:7077"
     environment:
       METRICS_PORT: "7077"
       LOGGER_LEVEL: "INFO"
