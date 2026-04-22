@@ -11,7 +11,7 @@ LOGGER_LEVEL: Final = config("LOGGER_LEVEL", default="INFO")
 
 MONGO_URI: Final = config(
     "MONGO_URI",
-    default="mongodb://localhost:27017/md5_cracker?directConnection=true",
+    default="mongodb://localhost:27017/md5_cracker",
 )
 MONGO_CONNECTION_SETTINGS = {
     "readPreference": "secondaryPreferred",

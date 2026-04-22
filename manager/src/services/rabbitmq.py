@@ -14,6 +14,8 @@ from src.services.mongodb import MongoDBManager
 from src.utils import retry
 
 logger = get_logger("rabbitmq")
+TASK_EXCHANGE = "task.exchange"
+RESULT_EXCHANGE = "result.exchange"
 
 
 class RabbitMQManager:
@@ -57,8 +59,20 @@ class RabbitMQManager:
 
     def _setup_queues(self) -> None:
         if self.pub_channel:
+            self.pub_channel.exchange_declare(
+                exchange=TASK_EXCHANGE, exchange_type="direct", durable=True
+            )
+            self.pub_channel.exchange_declare(
+                exchange=RESULT_EXCHANGE, exchange_type="direct", durable=True
+            )
             self.pub_channel.queue_declare(queue="task.queue", durable=True)
             self.pub_channel.queue_declare(queue="result.queue", durable=True)
+            self.pub_channel.queue_bind(
+                exchange=TASK_EXCHANGE, queue="task.queue", routing_key="task.queue"
+            )
+            self.pub_channel.queue_bind(
+                exchange=RESULT_EXCHANGE, queue="result.queue", routing_key="result.queue"
+            )
 
             self.pub_channel.basic_qos(prefetch_count=10)
 
@@ -72,7 +86,7 @@ class RabbitMQManager:
             self.ensure_connection()
             if self.pub_channel:
                 self.pub_channel.basic_publish(
-                    exchange="",
+                    exchange=TASK_EXCHANGE,
                     routing_key="task.queue",
                     body=orjson.dumps(task),
                     properties=pika.BasicProperties(
@@ -99,7 +113,13 @@ class RabbitMQManager:
 
             logger.info(f"Received result for task {task_id}, status: {result['status']}")
 
-            self.mongo.update_task_status(task_id, result["status"], result.get("results", []))
+            updated_task = self.mongo.mark_task_done_once(
+                task_id, result["status"], result.get("results", [])
+            )
+            if updated_task is None:
+                logger.info(f"Duplicate result for task {task_id}, message acknowledged")
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                return
 
             if result.get("results"):
                 self.mongo.add_results_to_request(request_id, result["results"])
@@ -146,6 +166,15 @@ class RabbitMQManager:
                 try:
                     connection = pika.BlockingConnection(self.parameters)
                     channel = connection.channel()
+                    channel.exchange_declare(
+                        exchange=RESULT_EXCHANGE, exchange_type="direct", durable=True
+                    )
+                    channel.queue_declare(queue="result.queue", durable=True)
+                    channel.queue_bind(
+                        exchange=RESULT_EXCHANGE,
+                        queue="result.queue",
+                        routing_key="result.queue",
+                    )
 
                     channel.basic_qos(prefetch_count=10)
 

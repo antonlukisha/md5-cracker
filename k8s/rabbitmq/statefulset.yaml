@@ -76,13 +76,20 @@ spec:
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
-            initialDelaySeconds: 20
+            initialDelaySeconds: 40
+            timeoutSeconds: 10
             periodSeconds: 10
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "ping"]
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
+            timeoutSeconds: 10
             periodSeconds: 30
+          startupProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "ping"]
+            failureThreshold: 30
+            periodSeconds: 10
       volumes:
         - name: config
           configMap:

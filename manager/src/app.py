@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, Namespace
 
 from flask import Flask, Response, jsonify, request
+from prometheus_client import generate_latest, REGISTRY, Counter, Gauge
 from prometheus_flask_exporter import PrometheusMetrics
 from waitress import serve
 
@@ -29,6 +30,11 @@ setup_logging(args.verbose)
 logger = get_logger("app")
 app = Flask(__name__)
 metrics = PrometheusMetrics(app)
+
+manager_requests_total = Counter('manager_requests_total', 'Total requests to manager', ['endpoint', 'method'])
+manager_requests_in_progress = Gauge('manager_requests_in_progress', 'Requests currently in progress')
+manager_tasks_total = Gauge('manager_tasks_total', 'Total tasks in system', ['status'])
+manager_requests_total_by_status = Gauge('manager_requests_total_by_status', 'Total requests by status', ['status'])
 
 mongo = MongoDBManager()
 rabbitmq = RabbitMQManager(mongo)
@@ -174,42 +180,38 @@ def health() -> tuple[Response, int]:
     return jsonify(health_status), status_code
 
 
-@app.route("/metrics/manager", methods=["GET"])
+@app.route("/metrics", methods=["GET"])
 def manager_metrics() -> tuple[Response, int] | Response:
     try:
-        if mongo.tasks is None or mongo.requests is None:
-            return jsonify({"error": "Database not available"}), 503
-        total_requests = mongo.requests.count_documents({})
-        in_progress = mongo.requests.count_documents({"status": "IN_PROGRESS"})
-        completed = mongo.requests.count_documents({"status": "READY"})
-        failed = mongo.requests.count_documents({"status": "ERROR"})
+        if mongo.requests is not None:
+            manager_requests_in_progress.set(mongo.requests.count_documents({"status": "IN_PROGRESS"}))
 
-        total_tasks = mongo.tasks.count_documents({})
-        pending_tasks = mongo.tasks.count_documents({"status": "PENDING"})
-        queued_tasks = mongo.tasks.count_documents({"status": "QUEUED"})
-        done_tasks = mongo.tasks.count_documents({"status": "DONE"})
-        error_tasks = mongo.tasks.count_documents({"status": "ERROR"})
+            in_progress = mongo.requests.count_documents({"status": "IN_PROGRESS"})
+            completed = mongo.requests.count_documents({"status": "READY"})
+            failed = mongo.requests.count_documents({"status": "ERROR"})
 
-        return jsonify(
-            {
-                "requests": {
-                    "total": total_requests,
-                    "in_progress": in_progress,
-                    "completed": completed,
-                    "failed": failed,
-                },
-                "tasks": {
-                    "total": total_tasks,
-                    "pending": pending_tasks,
-                    "queued": queued_tasks,
-                    "done": done_tasks,
-                    "error": error_tasks,
-                },
-            }
+            manager_requests_total_by_status.labels(status='in_progress').set(in_progress)
+            manager_requests_total_by_status.labels(status='completed').set(completed)
+            manager_requests_total_by_status.labels(status='failed').set(failed)
+
+        if mongo.tasks is not None:
+            pending_tasks = mongo.tasks.count_documents({"status": "PENDING"})
+            queued_tasks = mongo.tasks.count_documents({"status": "QUEUED"})
+            done_tasks = mongo.tasks.count_documents({"status": "DONE"})
+            error_tasks = mongo.tasks.count_documents({"status": "ERROR"})
+
+            manager_tasks_total.labels(status='pending').set(pending_tasks)
+            manager_tasks_total.labels(status='queued').set(queued_tasks)
+            manager_tasks_total.labels(status='done').set(done_tasks)
+            manager_tasks_total.labels(status='error').set(error_tasks)
+
+        return Response(
+            generate_latest(REGISTRY),
+            mimetype='text/plain; version=0.0.4; charset=utf-8'
         )
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        return Response("", status=500)
 
 
 @app.route("/start", methods=["POST"])

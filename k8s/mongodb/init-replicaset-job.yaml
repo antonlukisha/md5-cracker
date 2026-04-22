@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-init-replicaset
+  namespace: md5-cracker
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mongodb-init
+          image: mongo:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              mongosh --host mongodb-0.mongodb-headless.md5-cracker.svc.cluster.local:27017 --eval '
+              let initialized = false;
+              try {
+                const status = rs.status();
+                initialized = status.ok === 1;
+              } catch (e) {
+                initialized = false;
+              }
+              if (initialized) {
+                print("Replica set already initialized");
+              } else {
+                rs.initiate({
+                  _id: "rs0",
+                  members: [
+                    {_id: 0, host: "mongodb-0.mongodb-headless.md5-cracker.svc.cluster.local:27017"},
+                    {_id: 1, host: "mongodb-1.mongodb-headless.md5-cracker.svc.cluster.local:27017"},
+                    {_id: 2, host: "mongodb-2.mongodb-headless.md5-cracker.svc.cluster.local:27017"}
+                  ]
+                });
+              }'

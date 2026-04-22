@@ -18,6 +18,8 @@ class TaskRetryManager:
         self.thread: threading.Thread | None = None
 
     def start(self) -> None:
+        self.running = True
+        self._requeue_unfinished_tasks()
         self.thread = Thread(target=self._run, daemon=True)
         self.thread.start()
         logger.info("Task retry manager started")
@@ -55,3 +57,21 @@ class TaskRetryManager:
                 logger.info(f"Successfully retried task {task['taskId']}")
             else:
                 logger.warning(f"Failed to retry task {task['taskId']}")
+
+    def _requeue_unfinished_tasks(self) -> None:
+        unfinished_tasks = self.mongo.get_unfinished_tasks()
+        for task in unfinished_tasks:
+            task_message = {
+                "taskId": task["taskId"],
+                "requestId": task["requestId"],
+                "startIndex": task["startIndex"],
+                "count": task["count"],
+                "targetHash": task["targetHash"],
+                "maxLength": task["maxLength"],
+            }
+
+            if self.rabbitmq.publish_task(task_message):
+                if task["status"] == "QUEUED":
+                    self.mongo.mark_task_retried(task["taskId"])
+            else:
+                logger.warning(f"Failed to requeue unfinished task {task['taskId']}")

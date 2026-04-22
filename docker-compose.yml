@@ -1,0 +1,138 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: md5-cracker-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: md5_cracker
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 20s
+      timeout: 60s
+      retries: 50
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: md5-cracker-rabbitmq
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+      - "15674:15674"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 20s
+      timeout: 60s
+      retries: 50
+
+  manager:
+    build:
+      context: ./manager
+      dockerfile: Dockerfile
+    container_name: md5-cracker-manager
+    ports:
+      - "5055:5055"
+    environment:
+      TASK_SIZE: "100000"
+      LOGGER_LEVEL: "INFO"
+      MONGO_URI: "mongodb://mongodb:27017/md5_cracker?directConnection=true"
+      MONGO_DB_NAME: "md5_cracker"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASS: "guest"
+
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5055/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: md5-cracker-worker
+    ports:
+      - "7077:7077"
+    environment:
+      METRICS_PORT: "7077"
+      LOGGER_LEVEL: "INFO"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASS: "guest"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: md5-cracker-prometheus
+    ports:
+      - "9099:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: md5-cracker-grafana
+    ports:
+      - "3033:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - md5-cracker-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  mongodb_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  md5-cracker-network:
+    driver: bridge

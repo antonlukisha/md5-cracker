@@ -14,7 +14,9 @@ spec:
   - port: 27017
     targetPort: 27017
     name: mongodb
-  clusterIP: None
+  - port: 9216
+    targetPort: 9216
+    name: metrics
   selector:
     app: mongodb
 ---
@@ -32,6 +34,9 @@ spec:
   - port: 27017
     targetPort: 27017
     name: mongodb
+  - port: 9216
+    targetPort: 9216
+    name: metrics
   clusterIP: None
   selector:
     app: mongodb

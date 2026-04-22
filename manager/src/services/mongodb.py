@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from pymongo import MongoClient, WriteConcern
+from pymongo import MongoClient, ReturnDocument, WriteConcern
 from pymongo.collection import Collection
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from pymongo.read_preferences import ReadPreference
@@ -88,7 +88,7 @@ class MongoDBManager:
             return [str(i) for i in result.inserted_ids]
         raise RuntimeError("MongoDB not initialized")
 
-    def get_request(self, request_id: str, use_secondary: bool = True) -> Collection | None:
+    def get_request(self, request_id: str, use_secondary: bool = True) -> dict | None:
         if self.requests is None:
             raise RuntimeError("MongoDB not initialized")
 
@@ -97,6 +97,11 @@ class MongoDBManager:
             collection = collection.with_options(read_preference=ReadPreference.SECONDARY)
 
         return collection.find_one({"requestId": request_id})
+
+    def get_task(self, task_id: str) -> dict | None:
+        if self.tasks is None:
+            raise RuntimeError("MongoDB not initialized")
+        return self.tasks.find_one({"taskId": task_id})
 
     def update_task_status(
         self, task_id: str, status: str, results: list[str] | None = None
@@ -115,8 +120,29 @@ class MongoDBManager:
             raise RuntimeError("MongoDB not initialized")
 
         self.requests.update_one(
-            {"requestId": request_id}, {"$push": {"results": {"$each": results}}}
+            {"requestId": request_id}, {"$addToSet": {"results": {"$each": results}}}
         )
+
+    def mark_task_done_once(
+        self, task_id: str, status: str, results: list[str] | None = None
+    ) -> dict | None:
+        if self.tasks is None:
+            raise RuntimeError("MongoDB not initialized")
+
+        update_data: dict = {"status": status, "completed_at": datetime.now(timezone.utc)}
+        if results:
+            update_data["results"] = results
+
+        return self.tasks.find_one_and_update(
+            {"taskId": task_id, "status": {"$nin": ["DONE", "ERROR"]}},
+            {"$set": update_data},
+            return_document=ReturnDocument.AFTER,
+        )
+
+    def get_unfinished_tasks(self) -> list[dict]:
+        if self.tasks is None:
+            raise RuntimeError("MongoDB not initialized")
+        return list(self.tasks.find({"status": {"$in": ["PENDING", "QUEUED"]}}))
 
     def get_failed_tasks(self) -> list[dict]:
         if self.tasks is None:

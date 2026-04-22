@@ -5,7 +5,7 @@ metadata:
   namespace: md5-cracker
 data:
   TASK_SIZE: "100000"
-  MONGO_URI: "mongodb://mongodb-0.mongodb-headless.md5-cracker.svc.cluster.local:27017/md5_cracker?directConnection=true"
+  MONGO_URI: "mongodb://mongodb-0.mongodb-headless.md5-cracker.svc.cluster.local:27017,mongodb-1.mongodb-headless.md5-cracker.svc.cluster.local:27017,mongodb-2.mongodb-headless.md5-cracker.svc.cluster.local:27017/md5_cracker?replicaSet=rs0"
   RABBITMQ_HOST: "rabbitmq"
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: "guest"
