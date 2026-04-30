@@ -1,12 +1,12 @@
 FROM python:3.13-slim
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock* ./
 
-RUN uv venv && uv sync --no-dev
+RUN uv venv /venv && uv sync --no-dev
 
 ENV PATH="/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

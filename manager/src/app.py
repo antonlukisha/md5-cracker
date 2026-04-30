@@ -3,6 +3,7 @@ from argparse import ArgumentParser, Namespace
 from flask import Flask, Response, jsonify, request
 from prometheus_client import generate_latest, REGISTRY, Counter, Gauge
 from prometheus_flask_exporter import PrometheusMetrics
+from pymongo.read_preferences import ReadPreference
 from waitress import serve
 
 from src.core import config
@@ -183,22 +184,35 @@ def health() -> tuple[Response, int]:
 @app.route("/metrics", methods=["GET"])
 def manager_metrics() -> tuple[Response, int] | Response:
     try:
-        if mongo.requests is not None:
-            manager_requests_in_progress.set(mongo.requests.count_documents({"status": "IN_PROGRESS"}))
+        requests_collection = (
+            mongo.requests.with_options(read_preference=ReadPreference.PRIMARY)
+            if mongo.requests is not None
+            else None
+        )
+        tasks_collection = (
+            mongo.tasks.with_options(read_preference=ReadPreference.PRIMARY)
+            if mongo.tasks is not None
+            else None
+        )
 
-            in_progress = mongo.requests.count_documents({"status": "IN_PROGRESS"})
-            completed = mongo.requests.count_documents({"status": "READY"})
-            failed = mongo.requests.count_documents({"status": "ERROR"})
+        if requests_collection is not None:
+            manager_requests_in_progress.set(
+                requests_collection.count_documents({"status": "IN_PROGRESS"})
+            )
+
+            in_progress = requests_collection.count_documents({"status": "IN_PROGRESS"})
+            completed = requests_collection.count_documents({"status": "READY"})
+            failed = requests_collection.count_documents({"status": "ERROR"})
 
             manager_requests_total_by_status.labels(status='in_progress').set(in_progress)
             manager_requests_total_by_status.labels(status='completed').set(completed)
             manager_requests_total_by_status.labels(status='failed').set(failed)
 
-        if mongo.tasks is not None:
-            pending_tasks = mongo.tasks.count_documents({"status": "PENDING"})
-            queued_tasks = mongo.tasks.count_documents({"status": "QUEUED"})
-            done_tasks = mongo.tasks.count_documents({"status": "DONE"})
-            error_tasks = mongo.tasks.count_documents({"status": "ERROR"})
+        if tasks_collection is not None:
+            pending_tasks = tasks_collection.count_documents({"status": "PENDING"})
+            queued_tasks = tasks_collection.count_documents({"status": "QUEUED"})
+            done_tasks = tasks_collection.count_documents({"status": "DONE"})
+            error_tasks = tasks_collection.count_documents({"status": "ERROR"})
 
             manager_tasks_total.labels(status='pending').set(pending_tasks)
             manager_tasks_total.labels(status='queued').set(queued_tasks)

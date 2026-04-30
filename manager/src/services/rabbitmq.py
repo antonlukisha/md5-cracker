@@ -7,6 +7,7 @@ import orjson
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic, BasicProperties
+from pymongo.read_preferences import ReadPreference
 
 from src.core import config
 from src.core.logging import get_logger
@@ -137,8 +138,11 @@ class RabbitMQManager:
             if self.mongo.tasks is None:
                 logger.warning("MongoDB tasks collection is not available")
                 return
-            total_tasks = self.mongo.tasks.count_documents({"requestId": request_id})
-            completed_tasks = self.mongo.tasks.count_documents(
+            primary_tasks = self.mongo.tasks.with_options(
+                read_preference=ReadPreference.PRIMARY
+            )
+            total_tasks = primary_tasks.count_documents({"requestId": request_id})
+            completed_tasks = primary_tasks.count_documents(
                 {"requestId": request_id, "status": {"$in": ["DONE", "ERROR"]}}
             )
 
