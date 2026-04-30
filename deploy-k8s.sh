@@ -17,12 +17,12 @@ kubectl_ctx() {
 }
 
 if ! command -v kubectl >/dev/null 2>&1; then
-  echo "kubectl не найден в PATH"
+  echo "kubectl not found in PATH"
   exit 1
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "docker не найден в PATH"
+  echo "docker not found in PATH"
   exit 1
 fi
 
@@ -80,7 +80,7 @@ deploy_monitoring() {
   fi
 
   if ! command -v "$HELM_BIN" >/dev/null 2>&1; then
-    echo "helm не найден в PATH. Установи Helm или запусти: SKIP_MONITORING=1 bash ./deploy.sh"
+    echo "helm not found in PATH. Do you have installed Helm or run: SKIP_MONITORING=1 bash ./deploy.sh"
     exit 1
   fi
 

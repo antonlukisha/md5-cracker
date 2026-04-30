@@ -46,8 +46,13 @@ class RabbitMQClient:
 
     def _setup_queues(self) -> None:
         if self.channel:
-            self.channel.queue_declare(queue="task.queue", durable=True)
-            self.channel.queue_declare(queue="result.queue", durable=True)
+            queue_arguments = {"x-queue-type": "classic"}
+            self.channel.queue_declare(
+                queue="task.queue", durable=True, arguments=queue_arguments
+            )
+            self.channel.queue_declare(
+                queue="result.queue", durable=True, arguments=queue_arguments
+            )
 
             self.channel.basic_qos(prefetch_count=1)
 

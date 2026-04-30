@@ -1,0 +1,107 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    command: ["mongod", "--bind_ip_all", "--port", "27017"]
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - md5-cracker-network
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - md5-cracker-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  manager:
+    image: md5-cracker-manager:latest
+    ports:
+      - "5055:5055"
+    environment:
+      TASK_SIZE: "100000"
+      LOGGER_LEVEL: "INFO"
+      MONGO_URI: "mongodb://mongodb:27017/md5_cracker?directConnection=true"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASS: "guest"
+    networks:
+      - md5-cracker-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  worker:
+    image: md5-cracker-worker:latest
+    environment:
+      METRICS_PORT: "7077"
+      LOGGER_LEVEL: "INFO"
+      RABBITMQ_HOST: "rabbitmq"
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: "guest"
+      RABBITMQ_PASS: "guest"
+    networks:
+      - md5-cracker-network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9099:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - md5-cracker-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3033:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - md5-cracker-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+volumes:
+  mongodb_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  md5-cracker-network:
+    driver: overlay

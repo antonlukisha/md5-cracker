@@ -60,14 +60,19 @@ class RabbitMQManager:
 
     def _setup_queues(self) -> None:
         if self.pub_channel:
+            queue_arguments = {"x-queue-type": "classic"}
             self.pub_channel.exchange_declare(
                 exchange=TASK_EXCHANGE, exchange_type="direct", durable=True
             )
             self.pub_channel.exchange_declare(
                 exchange=RESULT_EXCHANGE, exchange_type="direct", durable=True
             )
-            self.pub_channel.queue_declare(queue="task.queue", durable=True)
-            self.pub_channel.queue_declare(queue="result.queue", durable=True)
+            self.pub_channel.queue_declare(
+                queue="task.queue", durable=True, arguments=queue_arguments
+            )
+            self.pub_channel.queue_declare(
+                queue="result.queue", durable=True, arguments=queue_arguments
+            )
             self.pub_channel.queue_bind(
                 exchange=TASK_EXCHANGE, queue="task.queue", routing_key="task.queue"
             )
@@ -173,7 +178,10 @@ class RabbitMQManager:
                     channel.exchange_declare(
                         exchange=RESULT_EXCHANGE, exchange_type="direct", durable=True
                     )
-                    channel.queue_declare(queue="result.queue", durable=True)
+                    queue_arguments = {"x-queue-type": "classic"}
+                    channel.queue_declare(
+                        queue="result.queue", durable=True, arguments=queue_arguments
+                    )
                     channel.queue_bind(
                         exchange=RESULT_EXCHANGE,
                         queue="result.queue",
